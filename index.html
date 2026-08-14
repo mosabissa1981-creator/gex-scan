@@ -33,7 +33,7 @@ body{
 .lede{margin:0 0 1.25rem;max-width:36rem;line-height:1.4;color:rgba(14,26,23,.78)}
 .panel{display:grid;gap:.8rem}
 label{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(14,26,23,.58)}
-textarea,select{
+textarea,select,input[type="password"],input[type="text"]{
   width:100%;border:1px solid var(--line);border-radius:14px;
   background:rgba(255,255,255,.58);backdrop-filter:blur(8px);
   -webkit-backdrop-filter:blur(8px);
@@ -117,6 +117,16 @@ tr.tier-put-lo td{background:rgba(196,58,42,.07)}
         </select>
       </div>
     </div>
+    <details class="field" id="paidBox">
+      <summary style="cursor:pointer;font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(14,26,23,.58)">OptionCharts paid cookie (optional)</summary>
+      <p style="margin:.45rem 0 .55rem;font-size:.85rem;line-height:1.35;color:rgba(14,26,23,.7)">Paste <code>_option_charts_session</code> from a logged-in computer browser. Saved only on this phone (not uploaded to GitHub). Cookie expires — paste a fresh one when scans fail.</p>
+      <input id="ocCookie" type="password" autocomplete="off" spellcheck="false" placeholder="_option_charts_session=... or just the value"/>
+      <div class="btn-row" style="margin-top:.55rem">
+        <button class="cta secondary" id="saveCookieBtn" type="button">Save cookie</button>
+        <button class="cta secondary" id="clearCookieBtn" type="button">Clear</button>
+      </div>
+      <div class="meta" id="cookieMeta" style="margin:.35rem 0 0"></div>
+    </details>
     <div class="btn-row">
       <button class="cta" id="btn" type="submit">Scan GEX</button>
       <button class="cta secondary" id="refreshBtn" type="button">Refresh</button>
@@ -132,7 +142,7 @@ tr.tier-put-lo td{background:rgba(196,58,42,.07)}
   </div>
   <div class="progress" id="progress"><i id="bar"></i></div>
   <div id="out"><p class="empty">Results appear here.</p></div>
-  <p class="foot">Ratio = Call : Put from absolute GEX. Highest imbalance first. Max 25 tickers. Hosted links expire ~72h.</p>
+  <p class="foot">Ratio = Call : Put from absolute GEX. Highest imbalance first. Max 25 tickers. Paid cookie stays on your phone only — never commit it to GitHub.</p>
 </main>
 <script>
 const PROXIES = [
@@ -205,11 +215,12 @@ function resolveExpiry(mode){
   if (mode === "weekly") return ymd(nextFriday()) + ":w";
   return ymd(nextWeekday()) + ":w";
 }
-async function proxyGet(url){
+async function proxyGet(url, extraHeaders){
   let lastErr = null;
+  const headers = Object.assign({}, extraHeaders || {});
   for (const build of PROXIES) {
     try {
-      const res = await fetch(build(url), { cache: "no-store" });
+      const res = await fetch(build(url), { cache: "no-store", headers });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const text = await res.text();
       if (!text || text.length < 20) throw new Error("Empty proxy response");
@@ -220,23 +231,49 @@ async function proxyGet(url){
 }
 function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
+function getSavedCookie(){
+  try { return localStorage.getItem("oc_session_cookie") || ""; }
+  catch (e) { return ""; }
+}
+function cookieHeaderValue(){
+  let raw = (document.getElementById("ocCookie").value || getSavedCookie() || "").trim();
+  if (!raw) return "";
+  if (/^_option_charts_session=/i.test(raw)) return raw;
+  if (raw.includes("=") && raw.includes(";")) return raw;
+  return "_option_charts_session=" + raw;
+}
+function authHeaders(){
+  const c = cookieHeaderValue();
+  return c ? { Cookie: c, "HX-Request": "true" } : { "HX-Request": "true" };
+}
+function refreshCookieMeta(){
+  const el = document.getElementById("cookieMeta");
+  const has = !!(document.getElementById("ocCookie").value.trim() || getSavedCookie());
+  el.textContent = has ? "Paid cookie loaded on this phone." : "No cookie saved — free OptionCharts data only.";
+}
+
 async function fetchOptionCharts(symbol, expiration){
   const q = new URLSearchParams({
     ticker: symbol, expiration_dates: expiration, option_type: "all",
     strike_range: "all", gamma_exposure_type: "open_interest", indicators: "", view_type: "net",
   });
-  const html = await proxyGet("https://optioncharts.io/async/options_charts/gamma_exposure?" + q.toString());
+  const html = await proxyGet(
+    "https://optioncharts.io/async/options_charts/gamma_exposure?" + q.toString(),
+    authHeaders()
+  );
   const m = html.match(/var chart_exposure_data = (\{[\s\S]*?\});/);
   if (!m) throw new Error("No GEX data");
   const data = JSON.parse(m[1]);
   const call = Number(data.call_exposure || 0);
   const put = Number(data.put_exposure || 0);
   const net = data.net_exposure != null ? Number(data.net_exposure) : call + put;
+  const paid = !!cookieHeaderValue();
   return {
-    ticker: data.ticker || symbol, source: "optioncharts", expiration,
+    ticker: data.ticker || symbol, source: paid ? "optioncharts-paid" : "optioncharts", expiration,
     call_gex: call, put_gex: put, net_gex: net, diff: call - Math.abs(put),
     dominant: Math.abs(call) >= Math.abs(put) ? "CALL" : "PUT",
     call_wall: data.call_wall, put_wall: data.put_wall,
+    note: paid ? "session cookie" : undefined,
   };
 }
 
@@ -316,6 +353,27 @@ function render(){
 document.getElementById("minRatio").addEventListener("change", () => {
   if (lastScan.rows.length) render();
 });
+
+// Paid cookie helpers (local phone storage only)
+(function initCookieUI(){
+  const input = document.getElementById("ocCookie");
+  const saved = getSavedCookie();
+  if (saved) input.value = saved;
+  refreshCookieMeta();
+  document.getElementById("saveCookieBtn").addEventListener("click", () => {
+    const v = input.value.trim();
+    try {
+      if (v) localStorage.setItem("oc_session_cookie", v);
+      else localStorage.removeItem("oc_session_cookie");
+    } catch (e) {}
+    refreshCookieMeta();
+  });
+  document.getElementById("clearCookieBtn").addEventListener("click", () => {
+    input.value = "";
+    try { localStorage.removeItem("oc_session_cookie"); } catch (e) {}
+    refreshCookieMeta();
+  });
+})();
 
 async function runScan(){
   const btn = document.getElementById("btn");
