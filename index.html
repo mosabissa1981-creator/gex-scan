@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#d7e8dc"/>
+<title>GEX Scan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --ink:#0e1a17; --pine:#14352c; --moss:#1f5a45; --lime:#c8f55a;
+  --call:#0f7a4d; --put:#c43a2a; --line:rgba(14,26,23,.12);
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  font-family:"DM Sans",system-ui,sans-serif;color:var(--ink);
+  background:
+    radial-gradient(900px 420px at 8% -8%,rgba(200,245,90,.3),transparent 55%),
+    linear-gradient(165deg,#f4faf5 0%,#d7e8dc 42%,#b9d2c4 100%);
+  background-attachment:fixed;
+  -webkit-tap-highlight-color:transparent;
+}
+.wrap{width:min(980px,calc(100% - 1.25rem));margin:0 auto;padding:1.5rem 0 3.5rem}
+.brand{
+  font-family:"Instrument Serif",Georgia,serif;
+  font-size:clamp(2.8rem,11vw,4.8rem);line-height:.92;margin:0 0 .45rem;
+}
+.brand em{font-style:italic;color:var(--moss)}
+.lede{margin:0 0 1.25rem;max-width:36rem;line-height:1.4;color:rgba(14,26,23,.78)}
+.panel{display:grid;gap:.8rem}
+label{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(14,26,23,.58)}
+textarea,select{
+  width:100%;border:1px solid var(--line);border-radius:14px;
+  background:rgba(255,255,255,.58);backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  padding:.9rem 1rem;font:inherit;color:var(--ink);outline:none;
+}
+textarea{min-height:6.5rem;resize:vertical}
+.field{display:grid;gap:.35rem}
+.actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.7rem}
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+button.cta{
+  border:0;border-radius:999px;padding:1rem 1.2rem;
+  background:var(--ink);color:var(--lime);font:inherit;font-weight:700;cursor:pointer;width:100%;
+}
+button.cta.secondary{background:rgba(255,255,255,.55);color:var(--ink);border:1px solid var(--line)}
+button.cta:disabled{opacity:.55;cursor:wait}
+.meta{min-height:1.35rem;margin:.95rem 0 .35rem;font-size:.9rem;color:rgba(14,26,23,.72)}
+.legend{display:flex;flex-wrap:wrap;gap:.45rem;margin:0 0 .85rem;font-size:.75rem;font-weight:700}
+.legend span{display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.45)}
+.swatch{width:.7rem;height:.7rem;border-radius:3px;display:inline-block}
+.swatch.call-hi{background:#0f7a4d}.swatch.call-mid{background:#5bb888}
+.swatch.put-hi{background:#c43a2a}.swatch.put-mid{background:#e07a6a}
+.progress{height:4px;border-radius:999px;background:rgba(14,26,23,.08);overflow:hidden;margin-bottom:.85rem;display:none}
+.progress > i{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--moss),var(--lime));transition:width .25s ease}
+.results{overflow:auto;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:.78rem .42rem;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:rgba(14,26,23,.52)}
+td.num,th.num{text-align:right} td.sym{font-weight:700}
+td.ratio{font-weight:800;font-size:1.05rem}
+.pos{color:var(--call)}.neg{color:var(--put)}.err{color:var(--put);font-size:.88rem}
+tr.tier-call-hi td{background:rgba(15,122,77,.28)}
+tr.tier-call-mid td{background:rgba(15,122,77,.14)}
+tr.tier-call-lo td{background:rgba(15,122,77,.07)}
+tr.tier-put-hi td{background:rgba(196,58,42,.26)}
+tr.tier-put-mid td{background:rgba(196,58,42,.14)}
+tr.tier-put-lo td{background:rgba(196,58,42,.07)}
+.pill{display:inline-block;min-width:3.2rem;text-align:center;padding:.2rem .5rem;border-radius:999px;font-size:.72rem;font-weight:700}
+.pill.call{background:rgba(15,122,77,.18);color:var(--call)}
+.pill.put{background:rgba(196,58,42,.16);color:var(--put)}
+.empty{margin-top:1.4rem;font-family:"Instrument Serif",Georgia,serif;font-style:italic;font-size:1.25rem;color:rgba(14,26,23,.55)}
+.foot{margin-top:1.4rem;font-size:.78rem;line-height:1.45;color:rgba(14,26,23,.55)}
+@media (max-width:720px){.actions{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1 class="brand">GEX <em>Scan</em></h1>
+  <p class="lede">Call : Put ratio scanner for iPhone. Green = more calls, red = more puts. Highest ratio on top.</p>
+
+  <form class="panel" id="form">
+    <div class="field">
+      <label for="tickers">Tickers</label>
+      <textarea id="tickers" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">NVDA AAPL TSLA AMD META SPY QQQ IWM MSFT AMZN</textarea>
+    </div>
+    <div class="actions">
+      <div class="field">
+        <label for="expiry">Expiry</label>
+        <select id="expiry">
+          <option value="daily" selected>Daily (0DTE / today)</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="all">All</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="minRatio">Min ratio</label>
+        <select id="minRatio">
+          <option value="1" selected>Any (show all)</option>
+          <option value="1.5">1 : 1.5+</option>
+          <option value="2">1 : 2+</option>
+          <option value="3">1 : 3+</option>
+          <option value="4">1 : 4+</option>
+          <option value="5">1 : 5+</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="source">Source</label>
+        <select id="source">
+          <option value="optioncharts" selected>OptionCharts</option>
+          <option value="optionsgex">OptionsGEX proxy</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="cta" id="btn" type="submit">Scan GEX</button>
+      <button class="cta secondary" id="refreshBtn" type="button">Refresh</button>
+    </div>
+  </form>
+
+  <div class="meta" id="meta"></div>
+  <div class="legend" id="legend" hidden>
+    <span><i class="swatch call-hi"></i> Call ≥ 1:3</span>
+    <span><i class="swatch call-mid"></i> Call ≥ 1:2</span>
+    <span><i class="swatch put-hi"></i> Put ≥ 1:3</span>
+    <span><i class="swatch put-mid"></i> Put ≥ 1:2</span>
+  </div>
+  <div class="progress" id="progress"><i id="bar"></i></div>
+  <div id="out"><p class="empty">Results appear here.</p></div>
+  <p class="foot">Ratio = Call : Put from absolute GEX. Highest imbalance first. Max 25 tickers. Hosted links expire ~72h.</p>
+</main>
+<script>
+const PROXIES = [
+  (u) => "https://cors.eu.org/" + u,
+  (u) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
+  (u) => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u),
+];
+const TV = ["NASDAQ:","NYSE:","AMEX:","CBOE:","BATS:","ARCA:","NYSEARCA:","OTC:"];
+let lastScan = { expiration: null, rows: [] };
+
+function money(v){
+  if (v == null || Number.isNaN(Number(v))) return "—";
+  const n = Number(v), sign = n < 0 ? "-" : "", a = Math.abs(n);
+  if (a >= 1e9) return sign + "$" + (a/1e9).toFixed(2) + "B";
+  if (a >= 1e6) return sign + "$" + (a/1e6).toFixed(2) + "M";
+  if (a >= 1e3) return sign + "$" + (a/1e3).toFixed(1) + "K";
+  return sign + "$" + a.toFixed(0);
+}
+function cls(v){ return Number(v) >= 0 ? "pos" : "neg"; }
+function sides(r){
+  const c = Math.abs(Number(r.call_gex) || 0);
+  const p = Math.abs(Number(r.put_gex) || 0);
+  const max = Math.max(c, p), min = Math.min(c, p);
+  const imbalance = min > 0 ? max / min : (max > 0 ? 1e12 : 1);
+  return { c, p, imbalance, callHeavy: c >= p };
+}
+function fmtRatioPart(n){
+  if (!Number.isFinite(n) || n >= 1e12) return "∞";
+  if (n >= 10) return n.toFixed(1);
+  if (n >= 3) return n.toFixed(1);
+  return String(Number(n.toFixed(2)));
+}
+function ratioLabel(r){
+  const { c, p, callHeavy, imbalance } = sides(r);
+  if (c === 0 && p === 0) return "—";
+  if (c === 0) return "0 : 1";
+  if (p === 0) return "1 : 0";
+  return callHeavy ? `${fmtRatioPart(imbalance)} : 1` : `1 : ${fmtRatioPart(imbalance)}`;
+}
+function normalize(raw){
+  let t = String(raw || "").trim().toUpperCase();
+  if (!t || t.startsWith("#")) return "";
+  for (const p of TV) if (t.startsWith(p)) { t = t.slice(p.length); break; }
+  return t.split(",")[0].replace(/[^A-Z0-9.\-]/g,"");
+}
+function parseTickers(text){
+  const seen = new Set(), out = [];
+  for (const part of String(text || "").split(/[,;\s]+/)) {
+    const s = normalize(part);
+    if (s && !seen.has(s)) { seen.add(s); out.push(s); }
+  }
+  return out;
+}
+function ymd(d){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function nextWeekday(){
+  const d = new Date();
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  return d;
+}
+function nextFriday(){
+  const d = new Date();
+  d.setDate(d.getDate() + ((5 - d.getDay() + 7) % 7));
+  return d;
+}
+function resolveExpiry(mode){
+  if (mode === "all") return "all";
+  if (mode === "monthly") return ymd(nextFriday()) + ":m";
+  if (mode === "weekly") return ymd(nextFriday()) + ":w";
+  return ymd(nextWeekday()) + ":w";
+}
+async function proxyGet(url){
+  let lastErr = null;
+  for (const build of PROXIES) {
+    try {
+      const res = await fetch(build(url), { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const text = await res.text();
+      if (!text || text.length < 20) throw new Error("Empty proxy response");
+      return text;
+    } catch (err) { lastErr = err; }
+  }
+  throw lastErr || new Error("All proxies failed");
+}
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchOptionCharts(symbol, expiration){
+  const q = new URLSearchParams({
+    ticker: symbol, expiration_dates: expiration, option_type: "all",
+    strike_range: "all", gamma_exposure_type: "open_interest", indicators: "", view_type: "net",
+  });
+  const html = await proxyGet("https://optioncharts.io/async/options_charts/gamma_exposure?" + q.toString());
+  const m = html.match(/var chart_exposure_data = (\{[\s\S]*?\});/);
+  if (!m) throw new Error("No GEX data");
+  const data = JSON.parse(m[1]);
+  const call = Number(data.call_exposure || 0);
+  const put = Number(data.put_exposure || 0);
+  const net = data.net_exposure != null ? Number(data.net_exposure) : call + put;
+  return {
+    ticker: data.ticker || symbol, source: "optioncharts", expiration,
+    call_gex: call, put_gex: put, net_gex: net, diff: call - Math.abs(put),
+    dominant: Math.abs(call) >= Math.abs(put) ? "CALL" : "PUT",
+    call_wall: data.call_wall, put_wall: data.put_wall,
+  };
+}
+
+async function fetchOptionsGex(symbol, expiration){
+  const text = await proxyGet("https://optionsgex.com/api/stock?symbol=" + encodeURIComponent(symbol));
+  const data = JSON.parse(text);
+  const chain = data.rawChain || {};
+  const notional = (arr) => (arr||[]).reduce((s,c)=> s + Number(c.openInterest||0)*Number(c.lastPrice||0)*100, 0);
+  const call = notional(chain.calls);
+  const put = notional(chain.puts);
+  const putSigned = -put;
+  return {
+    ticker: data.symbol || symbol, source: "optionsgex",
+    expiration: String(chain.expirationDate || data.expirationDate || expiration || "").slice(0,10),
+    call_gex: call, put_gex: putSigned, net_gex: call + putSigned, diff: call - put,
+    dominant: Math.abs(call) >= Math.abs(putSigned) ? "CALL" : "PUT",
+    call_wall: null, put_wall: null, note: "OI×price proxy",
+  };
+}
+
+function tierClass(r){
+  const { imbalance, callHeavy } = sides(r);
+  const side = callHeavy ? "call" : "put";
+  if (imbalance >= 3) return `tier-${side}-hi`;
+  if (imbalance >= 2) return `tier-${side}-mid`;
+  if (imbalance >= 1.5) return `tier-${side}-lo`;
+  return "";
+}
+
+function visibleRows(){
+  const minRatio = Number(document.getElementById("minRatio").value || 1);
+  return (lastScan.rows || [])
+    .filter(r => !r.error && r.call_gex != null && sides(r).imbalance >= minRatio)
+    .sort((a,b) => {
+      const ia = sides(a).imbalance, ib = sides(b).imbalance;
+      const fa = Number.isFinite(ia) ? ia : 1e12;
+      const fb = Number.isFinite(ib) ? ib : 1e12;
+      return fb - fa;
+    });
+}
+
+function render(){
+  const expiration = lastScan.expiration || "—";
+  const all = lastScan.rows || [];
+  const rows = visibleRows();
+  const hid = all.filter(r => !r.error && r.call_gex != null).length - rows.length;
+  const callDom = rows.filter(r => r.dominant === "CALL").length;
+  const putDom = rows.filter(r => r.dominant === "PUT").length;
+  const minRatio = Number(document.getElementById("minRatio").value || 1);
+  document.getElementById("legend").hidden = !rows.length;
+  document.getElementById("meta").textContent =
+    `Expiry ${expiration} · ${rows.length} shown` +
+    (hid > 0 ? ` (hid ${hid})` : "") +
+    ` · CALL ${callDom} / PUT ${putDom}` +
+    (minRatio > 1 ? ` · min 1:${minRatio}` : "");
+  if (!all.length){ document.getElementById("out").innerHTML = `<p class="empty">Results appear here.</p>`; return; }
+  if (!rows.length){ document.getElementById("out").innerHTML = `<p class="empty">No tickers at that Call:Put ratio.</p>`; return; }
+  const body = rows.map(r => {
+    const { callHeavy } = sides(r);
+    return `<tr class="${tierClass(r)}">
+      <td class="sym">${r.ticker}</td>
+      <td class="num ${cls(r.call_gex)}">${money(r.call_gex)}</td>
+      <td class="num ${cls(r.put_gex)}">${money(r.put_gex)}</td>
+      <td class="num ${cls(r.net_gex)}">${money(r.net_gex)}</td>
+      <td class="ratio ${callHeavy ? "pos" : "neg"}">${ratioLabel(r)}</td>
+      <td><span class="pill ${String(r.dominant).toLowerCase()}">${r.dominant}</span></td>
+      <td>${r.call_wall ?? "—"} / ${r.put_wall ?? "—"}</td>
+    </tr>`;
+  }).join("");
+  document.getElementById("out").innerHTML = `<div class="results"><table>
+    <thead><tr>
+      <th>Symbol</th><th class="num">Call</th><th class="num">Put</th>
+      <th class="num">Net</th><th>Call : Put</th><th>Dom</th><th>Walls</th>
+    </tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+document.getElementById("minRatio").addEventListener("change", () => {
+  if (lastScan.rows.length) render();
+});
+
+async function runScan(){
+  const btn = document.getElementById("btn");
+  const refreshBtn = document.getElementById("refreshBtn");
+  const meta = document.getElementById("meta");
+  const progress = document.getElementById("progress");
+  const bar = document.getElementById("bar");
+  const symbols = parseTickers(document.getElementById("tickers").value);
+  if (!symbols.length){ meta.textContent = "Add at least one ticker."; return; }
+  if (symbols.length > 25){ meta.textContent = "Max 25 tickers per scan."; return; }
+  const expiration = resolveExpiry(document.getElementById("expiry").value);
+  const source = document.getElementById("source").value;
+  btn.disabled = true; refreshBtn.disabled = true;
+  progress.style.display = "block"; bar.style.width = "0%";
+  meta.textContent = "Scanning…";
+  document.getElementById("out").innerHTML = "";
+  document.getElementById("legend").hidden = true;
+  const rows = [];
+  for (let i = 0; i < symbols.length; i++){
+    const sym = symbols[i];
+    meta.textContent = `Scanning ${sym} (${i+1}/${symbols.length})…`;
+    try {
+      rows.push(source === "optionsgex"
+        ? await fetchOptionsGex(sym, expiration)
+        : await fetchOptionCharts(sym, expiration));
+    } catch (err) {
+      if (source === "optioncharts"){
+        try {
+          const fb = await fetchOptionsGex(sym, expiration);
+          fb.fallback_from = "optioncharts";
+          rows.push(fb);
+        } catch (e2) {
+          rows.push({ ticker: sym, source, error: String(err.message || err) });
+        }
+      } else {
+        rows.push({ ticker: sym, source, error: String(err.message || err) });
+      }
+    }
+    bar.style.width = ((i+1)/symbols.length*100).toFixed(0) + "%";
+    if (i < symbols.length - 1) await sleep(280);
+  }
+  lastScan = { expiration, rows };
+  render();
+  const stamp = new Date().toLocaleTimeString();
+  document.getElementById("meta").textContent += ` · refreshed ${stamp}`;
+  btn.disabled = false; refreshBtn.disabled = false;
+}
+
+document.getElementById("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  await runScan();
+});
+document.getElementById("refreshBtn").addEventListener("click", async () => {
+  await runScan();
+});
+</script>
+</body>
+</html>
