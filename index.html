@@ -148,6 +148,7 @@ tr.tier-put-lo td{background:rgba(196,58,42,.07)}
 <script>
 const MAX_TICKERS = 100;
 const PROXIES = [
+  (u) => "https://proxy.cors.sh/" + u,
   (u) => "https://cors.eu.org/" + u,
   (u) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
   (u) => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u),
@@ -245,13 +246,27 @@ function resolveExpiry(mode){
 }
 async function proxyGet(url, extraHeaders){
   let lastErr = null;
-  const headers = Object.assign({}, extraHeaders || {});
+  // Browsers block the Cookie header on fetch(); only send safe headers.
+  const headers = { "HX-Request": "true" };
+  if (extraHeaders) {
+    for (const [k, v] of Object.entries(extraHeaders)) {
+      if (/^cookie$/i.test(k)) continue;
+      headers[k] = v;
+    }
+  }
   for (const build of PROXIES) {
     try {
       const res = await fetch(build(url), { cache: "no-store", headers });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const text = await res.text();
       if (!text || text.length < 20) throw new Error("Empty proxy response");
+      if (/error code:\s*52[0-9]/i.test(text) && text.length < 200) throw new Error("Proxy upstream error");
+      if (url.includes("optioncharts.io") && !/chart_exposure_data/.test(text)) {
+        throw new Error("No GEX payload from proxy");
+      }
+      if (url.includes("optionsgex.com") && !/"rawChain"/.test(text) && !/"symbol"\s*:/.test(text)) {
+        throw new Error("No OptionsGEX payload from proxy");
+      }
       return text;
     } catch (err) { lastErr = err; }
   }
@@ -358,7 +373,19 @@ function render(){
     ` Â· CALL ${callDom} / PUT ${putDom}` +
     (minRatio > 1 ? ` Â· min 1:${minRatio}` : "");
   if (!all.length){ document.getElementById("out").innerHTML = `<p class="empty">Results appear here.</p>`; return; }
-  if (!rows.length){ document.getElementById("out").innerHTML = `<p class="empty">No tickers at that Call:Put ratio.</p>`; return; }
+  if (!rows.length){
+    const errs = all.filter(r => r.error);
+    const okish = all.filter(r => !r.error && r.call_gex != null).length;
+    let msg = "No tickers at that Call:Put ratio.";
+    if (!okish && errs.length){
+      const sample = errs.slice(0, 3).map(r => r.ticker + ": " + r.error).join(" Â· ");
+      msg = "Scan failed for all tickers (proxy/data). " + sample;
+    } else if (!okish){
+      msg = "No GEX numbers returned. Try Source â†’ OptionsGEX, or Refresh in a minute.";
+    }
+    document.getElementById("out").innerHTML = `<p class="empty">${msg}</p>`;
+    return;
+  }
   const body = rows.map(r => {
     const { callHeavy } = sides(r);
     return `<tr class="${tierClass(r)}">
