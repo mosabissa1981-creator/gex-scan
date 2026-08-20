@@ -87,6 +87,7 @@ tr.tier-put-lo td{background:rgba(196,58,42,.07)}
     <div class="field">
       <label for="tickers">Tickers</label>
       <textarea id="tickers" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">NVDA AAPL TSLA AMD META SPY QQQ IWM MSFT AMZN</textarea>
+      <p class="meta" id="tickerSaveMeta" style="margin:.35rem 0 0">Your ticker list is saved on this device.</p>
     </div>
     <div class="actions">
       <div class="field">
@@ -119,7 +120,7 @@ tr.tier-put-lo td{background:rgba(196,58,42,.07)}
     </div>
     <details class="field" id="paidBox">
       <summary style="cursor:pointer;font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(14,26,23,.58)">OptionCharts paid cookie (optional)</summary>
-      <p style="margin:.45rem 0 .55rem;font-size:.85rem;line-height:1.35;color:rgba(14,26,23,.7)">Paste <code>_option_charts_session</code> from a logged-in computer browser. Saved only on this phone (not uploaded to GitHub). Cookie expires — paste a fresh one when scans fail.</p>
+      <p style="margin:.45rem 0 .55rem;font-size:.85rem;line-height:1.35;color:rgba(14,26,23,.7)">Paste <code>_option_charts_session</code> from a logged-in computer browser. Saved only on this phone (not uploaded to GitHub). Cookie expires â€” paste a fresh one when scans fail.</p>
       <input id="ocCookie" type="password" autocomplete="off" spellcheck="false" placeholder="_option_charts_session=... or just the value"/>
       <div class="btn-row" style="margin-top:.55rem">
         <button class="cta secondary" id="saveCookieBtn" type="button">Save cookie</button>
@@ -135,16 +136,17 @@ tr.tier-put-lo td{background:rgba(196,58,42,.07)}
 
   <div class="meta" id="meta"></div>
   <div class="legend" id="legend" hidden>
-    <span><i class="swatch call-hi"></i> Call ≥ 1:3</span>
-    <span><i class="swatch call-mid"></i> Call ≥ 1:2</span>
-    <span><i class="swatch put-hi"></i> Put ≥ 1:3</span>
-    <span><i class="swatch put-mid"></i> Put ≥ 1:2</span>
+    <span><i class="swatch call-hi"></i> Call â‰¥ 1:3</span>
+    <span><i class="swatch call-mid"></i> Call â‰¥ 1:2</span>
+    <span><i class="swatch put-hi"></i> Put â‰¥ 1:3</span>
+    <span><i class="swatch put-mid"></i> Put â‰¥ 1:2</span>
   </div>
   <div class="progress" id="progress"><i id="bar"></i></div>
   <div id="out"><p class="empty">Results appear here.</p></div>
-  <p class="foot">Ratio = Call : Put from absolute GEX. Highest imbalance first. Max 100 tickers. Paid cookie stays on your phone only — never commit it to GitHub.</p>
+  <p class="foot">Ratio = Call : Put from absolute GEX. Highest imbalance first. Max <span id="maxTickersFoot">100</span> tickers. Tickers, expiry, and cookie stay on this device only â€” never commit them to GitHub.</p>
 </main>
 <script>
+const MAX_TICKERS = 100;
 const PROXIES = [
   (u) => "https://cors.eu.org/" + u,
   (u) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
@@ -152,9 +154,35 @@ const PROXIES = [
 ];
 const TV = ["NASDAQ:","NYSE:","AMEX:","CBOE:","BATS:","ARCA:","NYSEARCA:","OTC:"];
 let lastScan = { expiration: null, rows: [] };
+document.getElementById("maxTickersFoot").textContent = String(MAX_TICKERS);
+
+function lsGet(key){
+  try { return localStorage.getItem(key); }
+  catch (e) { return null; }
+}
+function lsSet(key, value){
+  try { localStorage.setItem(key, value); }
+  catch (e) {}
+}
+function saveScanSettings(){
+  lsSet("gex_tickers", document.getElementById("tickers").value);
+  lsSet("gex_expiry", document.getElementById("expiry").value);
+  lsSet("gex_min_ratio", document.getElementById("minRatio").value);
+  lsSet("gex_source", document.getElementById("source").value);
+}
+function loadScanSettings(){
+  const tickers = lsGet("gex_tickers");
+  if (tickers != null && tickers.trim()) document.getElementById("tickers").value = tickers;
+  const expiry = lsGet("gex_expiry");
+  if (expiry) document.getElementById("expiry").value = expiry;
+  const minRatio = lsGet("gex_min_ratio");
+  if (minRatio) document.getElementById("minRatio").value = minRatio;
+  const source = lsGet("gex_source");
+  if (source) document.getElementById("source").value = source;
+}
 
 function money(v){
-  if (v == null || Number.isNaN(Number(v))) return "—";
+  if (v == null || Number.isNaN(Number(v))) return "â€”";
   const n = Number(v), sign = n < 0 ? "-" : "", a = Math.abs(n);
   if (a >= 1e9) return sign + "$" + (a/1e9).toFixed(2) + "B";
   if (a >= 1e6) return sign + "$" + (a/1e6).toFixed(2) + "M";
@@ -170,14 +198,14 @@ function sides(r){
   return { c, p, imbalance, callHeavy: c >= p };
 }
 function fmtRatioPart(n){
-  if (!Number.isFinite(n) || n >= 1e12) return "∞";
+  if (!Number.isFinite(n) || n >= 1e12) return "âˆž";
   if (n >= 10) return n.toFixed(1);
   if (n >= 3) return n.toFixed(1);
   return String(Number(n.toFixed(2)));
 }
 function ratioLabel(r){
   const { c, p, callHeavy, imbalance } = sides(r);
-  if (c === 0 && p === 0) return "—";
+  if (c === 0 && p === 0) return "â€”";
   if (c === 0) return "0 : 1";
   if (p === 0) return "1 : 0";
   return callHeavy ? `${fmtRatioPart(imbalance)} : 1` : `1 : ${fmtRatioPart(imbalance)}`;
@@ -249,7 +277,7 @@ function authHeaders(){
 function refreshCookieMeta(){
   const el = document.getElementById("cookieMeta");
   const has = !!(document.getElementById("ocCookie").value.trim() || getSavedCookie());
-  el.textContent = has ? "Paid cookie loaded on this phone." : "No cookie saved — free OptionCharts data only.";
+  el.textContent = has ? "Paid cookie loaded on this phone." : "No cookie saved â€” free OptionCharts data only.";
 }
 
 async function fetchOptionCharts(symbol, expiration){
@@ -290,7 +318,7 @@ async function fetchOptionsGex(symbol, expiration){
     expiration: String(chain.expirationDate || data.expirationDate || expiration || "").slice(0,10),
     call_gex: call, put_gex: putSigned, net_gex: call + putSigned, diff: call - put,
     dominant: Math.abs(call) >= Math.abs(putSigned) ? "CALL" : "PUT",
-    call_wall: null, put_wall: null, note: "OI×price proxy",
+    call_wall: null, put_wall: null, note: "OIÃ—price proxy",
   };
 }
 
@@ -316,7 +344,7 @@ function visibleRows(){
 }
 
 function render(){
-  const expiration = lastScan.expiration || "—";
+  const expiration = lastScan.expiration || "â€”";
   const all = lastScan.rows || [];
   const rows = visibleRows();
   const hid = all.filter(r => !r.error && r.call_gex != null).length - rows.length;
@@ -325,10 +353,10 @@ function render(){
   const minRatio = Number(document.getElementById("minRatio").value || 1);
   document.getElementById("legend").hidden = !rows.length;
   document.getElementById("meta").textContent =
-    `Expiry ${expiration} · ${rows.length} shown` +
+    `Expiry ${expiration} Â· ${rows.length} shown` +
     (hid > 0 ? ` (hid ${hid})` : "") +
-    ` · CALL ${callDom} / PUT ${putDom}` +
-    (minRatio > 1 ? ` · min 1:${minRatio}` : "");
+    ` Â· CALL ${callDom} / PUT ${putDom}` +
+    (minRatio > 1 ? ` Â· min 1:${minRatio}` : "");
   if (!all.length){ document.getElementById("out").innerHTML = `<p class="empty">Results appear here.</p>`; return; }
   if (!rows.length){ document.getElementById("out").innerHTML = `<p class="empty">No tickers at that Call:Put ratio.</p>`; return; }
   const body = rows.map(r => {
@@ -340,7 +368,7 @@ function render(){
       <td class="num ${cls(r.net_gex)}">${money(r.net_gex)}</td>
       <td class="ratio ${callHeavy ? "pos" : "neg"}">${ratioLabel(r)}</td>
       <td><span class="pill ${String(r.dominant).toLowerCase()}">${r.dominant}</span></td>
-      <td>${r.call_wall ?? "—"} / ${r.put_wall ?? "—"}</td>
+      <td>${r.call_wall ?? "â€”"} / ${r.put_wall ?? "â€”"}</td>
     </tr>`;
   }).join("");
   document.getElementById("out").innerHTML = `<div class="results"><table>
@@ -351,8 +379,13 @@ function render(){
 }
 
 document.getElementById("minRatio").addEventListener("change", () => {
+  saveScanSettings();
   if (lastScan.rows.length) render();
 });
+document.getElementById("tickers").addEventListener("input", saveScanSettings);
+document.getElementById("expiry").addEventListener("change", saveScanSettings);
+document.getElementById("source").addEventListener("change", saveScanSettings);
+loadScanSettings();
 
 // Paid cookie helpers (local phone storage only)
 (function initCookieUI(){
@@ -382,19 +415,20 @@ async function runScan(){
   const progress = document.getElementById("progress");
   const bar = document.getElementById("bar");
   const symbols = parseTickers(document.getElementById("tickers").value);
+  saveScanSettings();
   if (!symbols.length){ meta.textContent = "Add at least one ticker."; return; }
-  if (symbols.length > 100){ meta.textContent = "Max 100 tickers per scan."; return; }
+  if (symbols.length > MAX_TICKERS){ meta.textContent = `Max ${MAX_TICKERS} tickers per scan.`; return; }
   const expiration = resolveExpiry(document.getElementById("expiry").value);
   const source = document.getElementById("source").value;
   btn.disabled = true; refreshBtn.disabled = true;
   progress.style.display = "block"; bar.style.width = "0%";
-  meta.textContent = "Scanning…";
+  meta.textContent = "Scanningâ€¦";
   document.getElementById("out").innerHTML = "";
   document.getElementById("legend").hidden = true;
   const rows = [];
   for (let i = 0; i < symbols.length; i++){
     const sym = symbols[i];
-    meta.textContent = `Scanning ${sym} (${i+1}/${symbols.length})…`;
+    meta.textContent = `Scanning ${sym} (${i+1}/${symbols.length})â€¦`;
     try {
       rows.push(source === "optionsgex"
         ? await fetchOptionsGex(sym, expiration)
@@ -418,7 +452,7 @@ async function runScan(){
   lastScan = { expiration, rows };
   render();
   const stamp = new Date().toLocaleTimeString();
-  document.getElementById("meta").textContent += ` · refreshed ${stamp}`;
+  document.getElementById("meta").textContent += ` Â· refreshed ${stamp}`;
   btn.disabled = false; refreshBtn.disabled = false;
 }
 
