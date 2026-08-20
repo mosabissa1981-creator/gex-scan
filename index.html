@@ -142,7 +142,7 @@ tr.tier-put-lo td{background:rgba(196,58,42,.07)}
   </div>
   <div class="progress" id="progress"><i id="bar"></i></div>
   <div id="out"><p class="empty">Results appear here.</p></div>
-  <p class="foot">Ratio = Call : Put from absolute GEX. Highest imbalance first. Max 25 tickers. Paid cookie stays on your phone only — never commit it to GitHub.</p>
+  <p class="foot">Ratio = Call : Put from absolute GEX. Highest imbalance first. Max 100 tickers. Paid cookie stays on your phone only — never commit it to GitHub.</p>
 </main>
 <script>
 const PROXIES = [
@@ -383,7 +383,7 @@ async function runScan(){
   const bar = document.getElementById("bar");
   const symbols = parseTickers(document.getElementById("tickers").value);
   if (!symbols.length){ meta.textContent = "Add at least one ticker."; return; }
-  if (symbols.length > 25){ meta.textContent = "Max 25 tickers per scan."; return; }
+  if (symbols.length > 100){ meta.textContent = "Max 100 tickers per scan."; return; }
   const expiration = resolveExpiry(document.getElementById("expiry").value);
   const source = document.getElementById("source").value;
   btn.disabled = true; refreshBtn.disabled = true;
